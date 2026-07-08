@@ -1,0 +1,195 @@
+// ----------------- Datasource & Generator -----------------
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------- Enums -----------------
+enum UserRole {
+  USER
+  OTHER_USER
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum OtpType {
+  VERIFICATION
+  LOGIN
+  PASSWORD_RESET
+  ACCOUNT_LINKING
+  PASSWORD_CHANGE
+  ACCOUNT_DELETION
+}
+
+enum AccountType {
+  PRIMARY
+  SECONDARY
+}
+
+// Add this new enum for linked account status
+enum LinkedAccountStatus {
+  PENDING
+  VERIFIED
+}
+
+// ----------------- Models -----------------
+model User {
+  id   String   @id @default(auto()) @map("_id") @db.ObjectId
+  role UserRole @default(USER)
+
+  // Auth fields
+  email         String?
+  phone         String?
+  password      String?
+  isOtpVerified Boolean @default(false)
+
+  // Social IDs
+  googleId   String?
+  facebookId String?
+  twitterId  String?
+
+  // Profile fields
+  name         String?
+  age          Int?
+  gender       Gender?
+  dob          DateTime?
+  profileImage String?
+  bio          String?
+
+  // Relations
+  linkedAccounts LinkedAccount[]
+  addresses      Address[]
+  otps           Otp[]
+
+  // Profile completion tracking
+  profileCompleted Boolean @default(false)
+  firstLogin       Boolean @default(true)
+
+  // Metadata
+  isVerified Boolean  @default(false)
+  isDeleted  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // ----------------- Back-relations for ML Models -----------------
+  toiEntries   TOIEntry[]
+  koiEntries   KOIEntry[]
+  k2Entries    K2Entry[]
+  customModels CustomModel[]
+}
+
+// ----------------- Linked Account -----------------
+model LinkedAccount {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  type       AccountType
+  email      String?
+  phone      String?
+  identifier String? // Add this field if you want to use it
+  isVerified Boolean     @default(false)
+  status     LinkedAccountStatus @default(PENDING)
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, email])
+  @@unique([userId, phone])
+}
+
+// ----------------- Address -----------------
+model Address {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  line1   String
+  line2   String?
+  city    String
+  state   String
+  region  String?
+  country String  @default("India")
+  pincode String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ----------------- OTP -----------------
+model Otp {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
+
+  identifier String // email or phone used for OTP
+  code       String
+  type       OtpType
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+}
+
+// ----------------- ML Models -----------------
+model TOIEntry {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model KOIEntry {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model K2Entry {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomModel {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  name      String
+  params    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries CustomModelEntry[]
+}
+
+model CustomModelEntry {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  customModelId String      @db.ObjectId
+  customModel   CustomModel @relation(fields: [customModelId], references: [id])
+
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
